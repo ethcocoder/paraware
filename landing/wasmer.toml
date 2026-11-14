@@ -1,0 +1,10 @@
+﻿[package]
+name = "ethcocoder/paraware-landing"
+version = "0.1.0"
+description = "Paraware public landing page"
+
+[dependencies]
+"wasmer/static-web-server" = "^1"
+
+[fs]
+public = "dist"
