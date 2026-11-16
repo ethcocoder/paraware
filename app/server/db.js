@@ -15,7 +15,9 @@ const TABLES = {
 };
 
 const primaryKeys = Object.fromEntries(Object.keys(TABLES).map((table) => [table, 'id']));
-const firestoreEnabled = Boolean(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+const firestoreEnabled = Boolean(
+  process.env.FIREBASE_SERVICE_ACCOUNT_JSON || process.env.FIREBASE_SERVICE_ACCOUNT_B64
+);
 const memory = new Map();
 let firestore = null;
 let persistQueue = Promise.resolve();
@@ -27,7 +29,9 @@ for (const [table, columns] of Object.entries(TABLES)) {
 
 function serviceAccount() {
   try {
-    const parsed = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+    const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON
+      || Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_B64 || '', 'base64').toString('utf8');
+    const parsed = JSON.parse(raw);
     return { ...parsed, private_key: parsed.private_key.replace(/\\n/g, '\n') };
   } catch (error) {
     throw new Error(`FIREBASE_SERVICE_ACCOUNT_JSON is invalid: ${error.message}`);
