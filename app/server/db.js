@@ -15,7 +15,9 @@ const TABLES = {
 };
 
 const primaryKeys = Object.fromEntries(Object.keys(TABLES).map((table) => [table, 'id']));
-const firestoreEnabled = Boolean(process.env.FIREBASE_SERVICE_ACCOUNT_B64);
+const firestoreEnabled = Boolean(
+  process.env.FIREBASE_SERVICE_ACCOUNT_B64 || process.env.FIREBASE_SERVICE_ACCOUNT_JSON
+);
 const memory = new Map();
 let firestore = null;
 let persistQueue = Promise.resolve();
@@ -61,10 +63,15 @@ function escapeRawJsonStringControls(value) {
 
 function serviceAccount() {
   try {
-    const configured = String(process.env.FIREBASE_SERVICE_ACCOUNT_B64 || '').trim();
-    const candidates = [configured];
-    const decoded = Buffer.from(configured, 'base64').toString('utf8');
-    if (decoded !== configured) candidates.push(decoded);
+    const candidates = [];
+    const configuredB64 = String(process.env.FIREBASE_SERVICE_ACCOUNT_B64 || '').trim();
+    const configuredJson = String(process.env.FIREBASE_SERVICE_ACCOUNT_JSON || '').trim();
+    if (configuredB64) {
+      candidates.push(configuredB64);
+      const decoded = Buffer.from(configuredB64, 'base64').toString('utf8');
+      if (decoded !== configuredB64) candidates.push(decoded);
+    }
+    if (configuredJson) candidates.push(configuredJson);
     let lastError = null;
     for (const candidate of candidates) {
       try {
