@@ -2,7 +2,7 @@ import express from 'express';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { all, get, run, transaction, hasSeedData, UPLOAD_DIR } from './db.js';
 import {
   authenticate,
@@ -1233,6 +1233,10 @@ if (fs.existsSync(clientDist)) {
   });
 }
 
-app.listen(PORT, () => {
-  console.log(`Paraware API listening on http://localhost:${PORT}`);
-});
+export { app };
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  app.listen(PORT, () => {
+    console.log(`Paraware API listening on http://localhost:${PORT}`);
+  });
+}

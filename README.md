@@ -10,6 +10,12 @@ Paraware is split into two deployable parts:
 - `landing/` – Standalone Vite + React site for the public landing page
 - `app/` – Full application (Vite client + Express API + SQLite)
 
+## Firebase configuration
+
+- `app/google-services.json` contains the supplied Android Firebase configuration for the future native app package `com.paraware.app`.
+- `landing/src/firebase.js` initializes the supplied Firebase Web SDK configuration and enables Analytics when the browser supports it.
+- Firebase browser configuration values are public client configuration; access control and sensitive operations should still be enforced by Firebase Security Rules and the API.
+
 ## Run locally
 
 ### App (main product)
