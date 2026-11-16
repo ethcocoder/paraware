@@ -27,20 +27,51 @@ for (const [table, columns] of Object.entries(TABLES)) {
   memory.set(table, alasql.tables[table].data);
 }
 
+function escapeRawJsonStringControls(value) {
+  let inString = false;
+  let escaped = false;
+  let result = '';
+  for (const character of String(value || '')) {
+    if (!inString) {
+      result += character;
+      if (character === '"') inString = true;
+      continue;
+    }
+    if (escaped) {
+      result += character;
+      escaped = false;
+      continue;
+    }
+    if (character === '\\') {
+      result += character;
+      escaped = true;
+    } else if (character === '"') {
+      result += character;
+      inString = false;
+    } else if (character === '\n') {
+      result += '\\n';
+    } else if (character === '\r') {
+      result += '\\r';
+    } else if (character === '\t') {
+      result += '\\t';
+    } else {
+      result += character;
+    }
+  }
+  return result;
+}
+
 function serviceAccount() {
   try {
-    const raw = process.env.FIREBASE_SERVICE_ACCOUNT_B64
+    const source = process.env.FIREBASE_SERVICE_ACCOUNT_B64 ? 'base64' : 'json';
+    const raw = source === 'base64'
       ? Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_B64, 'base64').toString('utf8')
       : process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
     let parsed;
     try {
       parsed = JSON.parse(raw);
     } catch (error) {
-      const repaired = raw?.replace(
-        /(\"private_key\"\s*:\s*\")([\s\S]*?)(\"\s*,)/,
-        (_match, prefix, privateKey, suffix) =>
-          `${prefix}${privateKey.replace(/\r?\n/g, '\\n')}${suffix}`
-      );
+      const repaired = escapeRawJsonStringControls(raw);
       if (!repaired || repaired === raw) throw error;
       parsed = JSON.parse(repaired);
     }
@@ -49,7 +80,7 @@ function serviceAccount() {
     }
     return { ...parsed, private_key: parsed.private_key.replace(/\\n/g, '\n') };
   } catch (error) {
-    throw new Error(`Firebase service account is invalid: ${error.message}`);
+    throw new Error(`Firebase service account is invalid (${process.env.FIREBASE_SERVICE_ACCOUNT_B64 ? 'base64' : 'json'}): ${error.message}`);
   }
 }
 
