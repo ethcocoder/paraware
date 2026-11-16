@@ -61,19 +61,30 @@ function escapeRawJsonStringControls(value) {
 
 function serviceAccount() {
   try {
-    const raw = Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_B64, 'base64').toString('utf8');
-    let parsed;
-    try {
-      parsed = JSON.parse(raw);
-    } catch (error) {
-      const repaired = escapeRawJsonStringControls(raw);
-      if (!repaired || repaired === raw) throw error;
-      parsed = JSON.parse(repaired);
+    const configured = String(process.env.FIREBASE_SERVICE_ACCOUNT_B64 || '').trim();
+    const candidates = [configured];
+    const decoded = Buffer.from(configured, 'base64').toString('utf8');
+    if (decoded !== configured) candidates.push(decoded);
+    let lastError = null;
+    for (const candidate of candidates) {
+      try {
+        let parsed;
+        try {
+          parsed = JSON.parse(candidate);
+        } catch (error) {
+          const repaired = escapeRawJsonStringControls(candidate);
+          if (!repaired || repaired === candidate) throw error;
+          parsed = JSON.parse(repaired);
+        }
+        if (!parsed || typeof parsed !== 'object' || typeof parsed.private_key !== 'string') {
+          throw new Error('service account is missing a private key');
+        }
+        return { ...parsed, private_key: parsed.private_key.replace(/\\n/g, '\n') };
+      } catch (error) {
+        lastError = error;
+      }
     }
-    if (!parsed || typeof parsed !== 'object' || typeof parsed.private_key !== 'string') {
-      throw new Error('service account is missing a private key');
-    }
-    return { ...parsed, private_key: parsed.private_key.replace(/\\n/g, '\n') };
+    throw lastError || new Error('service account is empty');
   } catch (error) {
     throw new Error(`Firebase service account is invalid: ${error.message}`);
   }
