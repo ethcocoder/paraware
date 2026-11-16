@@ -29,12 +29,16 @@ for (const [table, columns] of Object.entries(TABLES)) {
 
 function serviceAccount() {
   try {
-    const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON
-      || Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_B64 || '', 'base64').toString('utf8');
+    const raw = process.env.FIREBASE_SERVICE_ACCOUNT_B64
+      ? Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_B64, 'base64').toString('utf8')
+      : process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
     const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || typeof parsed.private_key !== 'string') {
+      throw new Error('service account is missing a private key');
+    }
     return { ...parsed, private_key: parsed.private_key.replace(/\\n/g, '\n') };
   } catch (error) {
-    throw new Error(`FIREBASE_SERVICE_ACCOUNT_JSON is invalid: ${error.message}`);
+    throw new Error(`Firebase service account is invalid: ${error.message}`);
   }
 }
 
