@@ -38,7 +38,11 @@ function escapeRawJsonStringControls(value) {
       continue;
     }
     if (escaped) {
-      result += character;
+      if (character.charCodeAt(0) < 0x20) {
+        result += `\\u${character.charCodeAt(0).toString(16).padStart(4, '0')}`;
+      } else {
+        result += character;
+      }
       escaped = false;
       continue;
     }
@@ -63,7 +67,6 @@ function serviceAccount() {
     const raw = source === 'base64'
       ? Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_B64, 'base64').toString('utf8')
       : process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-    console.log(`[firebase] credential source=${source} length=${raw?.length || 0}`);
     let parsed;
     try {
       parsed = JSON.parse(raw);
