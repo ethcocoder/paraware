@@ -61,56 +61,113 @@ function escapeRawJsonStringControls(value) {
   return result;
 }
 
+function cleanCredential(value) {
+  return String(value || '')
+    .replace(/^\uFEFF/, '')
+    .trim();
+}
+
+function parseCredential(candidate) {
+  let parsed;
+  try {
+    parsed = JSON.parse(candidate);
+  } catch (error) {
+    const repaired = escapeRawJsonStringControls(candidate);
+    if (!repaired || repaired === candidate) throw error;
+    parsed = JSON.parse(repaired);
+  }
+  // Some dashboards double-encode the JSON as a quoted string.
+  if (typeof parsed === 'string') parsed = JSON.parse(parsed);
+  return parsed;
+}
+
 function serviceAccount() {
   try {
     const candidates = [];
-    const configuredB64 = String(process.env.FIREBASE_SERVICE_ACCOUNT_B64 || '').trim();
-    const configuredJson = String(process.env.FIREBASE_SERVICE_ACCOUNT_JSON || '').trim();
+    const configuredB64 = cleanCredential(process.env.FIREBASE_SERVICE_ACCOUNT_B64);
+    const configuredJson = cleanCredential(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
     if (configuredB64) {
-      candidates.push(configuredB64);
-      const decoded = Buffer.from(configuredB64, 'base64').toString('utf8');
-      if (decoded !== configuredB64) candidates.push(decoded);
+      candidates.push({ source: 'FIREBASE_SERVICE_ACCOUNT_B64', value: configuredB64 });
+      const decoded = Buffer.from(configuredB64.replace(/\s+/g, ''), 'base64').toString('utf8');
+      if (decoded && decoded !== configuredB64) {
+        candidates.push({
+          source: 'FIREBASE_SERVICE_ACCOUNT_B64 (decoded)',
+          value: cleanCredential(decoded),
+        });
+      }
     }
-    if (configuredJson) candidates.push(configuredJson);
+    if (configuredJson) {
+      candidates.push({ source: 'FIREBASE_SERVICE_ACCOUNT_JSON', value: configuredJson });
+    }
     let lastError = null;
-    for (const candidate of candidates) {
+    let lastSource = 'Firebase credentials';
+    for (const { source, value } of candidates) {
       try {
-        let parsed;
-        try {
-          parsed = JSON.parse(candidate);
-        } catch (error) {
-          const repaired = escapeRawJsonStringControls(candidate);
-          if (!repaired || repaired === candidate) throw error;
-          parsed = JSON.parse(repaired);
-        }
+        const parsed = parseCredential(value);
         if (!parsed || typeof parsed !== 'object' || typeof parsed.private_key !== 'string') {
-          throw new Error('service account is missing a private key');
+          throw new Error('service account is missing a private_key');
         }
         return { ...parsed, private_key: parsed.private_key.replace(/\\n/g, '\n') };
       } catch (error) {
         lastError = error;
+        lastSource = source;
       }
     }
-    throw lastError || new Error('service account is empty');
+    throw new Error(`${lastSource}: ${lastError?.message || 'service account is empty'}`);
   } catch (error) {
-    throw new Error(`Firebase service account is invalid: ${error.message}`);
+    throw new Error(`Firebase service account is invalid (${error.message})`);
   }
 }
 
+let storageError = null;
+
 if (firestoreEnabled) {
-  const app = getApps().length ? getApps()[0] : initializeApp({ credential: cert(serviceAccount()) });
-  firestore = getFirestore(app);
+  try {
+    const app = getApps().length
+      ? getApps()[0]
+      : initializeApp({ credential: cert(serviceAccount()) });
+    firestore = getFirestore(app);
+  } catch (error) {
+    storageError = error;
+    console.error(
+      'Firestore is disabled because Firebase Admin could not initialize:',
+      error.message
+    );
+  }
 }
 
 async function hydrate() {
   if (!firestore) return;
-  for (const table of Object.keys(TABLES)) {
-    const snapshot = await firestore.collection(table).get();
-    memory.get(table).push(...snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+  try {
+    for (const table of Object.keys(TABLES)) {
+      const snapshot = await firestore.collection(table).get();
+      memory.get(table).push(...snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+    }
+  } catch (error) {
+    storageError = error;
+    // Keep the API alive on in-memory storage instead of crashing the whole
+    // serverless function on a Firestore permission/configuration problem.
+    firestore = null;
+    console.error(
+      'Firestore hydration failed; continuing with in-memory data:',
+      error.message
+    );
   }
 }
 
 export const firestoreReady = hydrate();
+
+export function storageInfo() {
+  return {
+    configured: firestoreEnabled,
+    mode: firestore ? 'firestore' : 'memory',
+    sources: {
+      FIREBASE_SERVICE_ACCOUNT_B64: Boolean(process.env.FIREBASE_SERVICE_ACCOUNT_B64),
+      FIREBASE_SERVICE_ACCOUNT_JSON: Boolean(process.env.FIREBASE_SERVICE_ACCOUNT_JSON),
+    },
+    error: storageError ? String(storageError.message || storageError) : null,
+  };
+}
 
 function tableFromSql(sql) {
   const match = String(sql).match(/\b(?:FROM|INTO|UPDATE|JOIN|TABLE)\s+([a-z_]+)/i);

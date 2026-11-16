@@ -11,6 +11,7 @@ import {
   hasSeedData,
   UPLOAD_DIR,
   firestoreReady,
+  storageInfo,
 } from './db.js';
 import {
   authenticate,
@@ -28,7 +29,14 @@ const app = express();
 const PORT = Number(process.env.PORT || 4000);
 const clientDist = path.join(__dirname, '..', 'client', 'dist');
 
-await firestoreReady;
+try {
+  await firestoreReady;
+} catch (error) {
+  console.error(
+    'Firestore did not finish loading; continuing with in-memory data:',
+    error.message
+  );
+}
 
 if (!hasSeedData()) {
   seedDatabase();
@@ -421,7 +429,12 @@ app.patch('/api/me', authenticate, (req, res) => {
 // ---------- Public ----------
 
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, service: 'paraware-api', time: new Date().toISOString() });
+  res.json({
+    ok: true,
+    service: 'paraware-api',
+    time: new Date().toISOString(),
+    storage: storageInfo(),
+  });
 });
 
 app.get('/api/public/overview', (_req, res) => {
