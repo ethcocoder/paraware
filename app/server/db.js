@@ -39,7 +39,7 @@ function serviceAccount() {
       const repaired = raw?.replace(
         /(\"private_key\"\s*:\s*\")([\s\S]*?)(\"\s*,)/,
         (_match, prefix, privateKey, suffix) =>
-          `${prefix}${privateKey.replace(/\r?\n/g, '\\\\n')}${suffix}`
+          `${prefix}${privateKey.replace(/\r?\n/g, '\\n')}${suffix}`
       );
       if (!repaired || repaired === raw) throw error;
       parsed = JSON.parse(repaired);
