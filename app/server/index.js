@@ -3,7 +3,15 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { all, get, run, transaction, hasSeedData, UPLOAD_DIR } from './db.js';
+import {
+  all,
+  get,
+  run,
+  transaction,
+  hasSeedData,
+  UPLOAD_DIR,
+  firestoreReady,
+} from './db.js';
 import {
   authenticate,
   createToken,
@@ -19,6 +27,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = Number(process.env.PORT || 4000);
 const clientDist = path.join(__dirname, '..', 'client', 'dist');
+
+await firestoreReady;
 
 if (!hasSeedData()) {
   seedDatabase();

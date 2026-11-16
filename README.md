@@ -68,10 +68,10 @@ This makes landing buttons/links point to the main app and fetches public overvi
 
 ## API deployment (important)
 
-The current API (`app/server/`) is a **Node.js/Express** server using **`node:sqlite`** and local filesystem storage (`server/data/*.db`, `server/uploads/`). This stack is **not directly compatible with Wasmer Edge** as-is (Wasmer Edge is optimized for static sites, PHP/Python/WinterCG-style workloads, and has specific runtime/storage constraints). 
+The API (`app/server/`) is a **Node.js/Express** server backed by Firebase Admin + Firestore. It uses simple collection reads and document writes for `users`, `reports`, `messages`, `notifications`, `departments`, `announcements`, `report_events`, and `audit_logs`; it does not require composite Firestore indexes. Uploaded media uses the deployment's temporary filesystem and should move to Firebase Storage before production use.
 
-To “deploy the API” and use it for the future app build, use a Node-compatible host (e.g. Render, Railway, Fly.io, VPS, etc.) for `app/server` (with a persistent database/storage strategy), then set:
+For Vercel, configure the sensitive `FIREBASE_SERVICE_ACCOUNT_JSON` environment variable on the `paraware-app` project for Production, Preview, and Development. The value is the Firebase Admin service-account JSON and must never be committed to Git.
+
+The app can be deployed as a Vercel serverless function because Firestore supplies persistent data storage. For production media persistence, connect Firebase Storage and replace the temporary upload path, then set:
 - `landing` build vars: `VITE_APP_URL`/`VITE_API_URL` → deployed app/API URL
-- future app client API base URL → deployed API URL
-
-If you specifically need the API on Wasmer, the backend would need to be re-architected for a Wasmer-supported runtime (and a compatible persistence layer/volumes).
+- app client API base URL → deployed API URL
