@@ -32,7 +32,18 @@ function serviceAccount() {
     const raw = process.env.FIREBASE_SERVICE_ACCOUNT_B64
       ? Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_B64, 'base64').toString('utf8')
       : process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-    const parsed = JSON.parse(raw);
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (error) {
+      const repaired = raw?.replace(
+        /(\"private_key\"\s*:\s*\")([\s\S]*?)(\"\s*,)/,
+        (_match, prefix, privateKey, suffix) =>
+          `${prefix}${privateKey.replace(/\r?\n/g, '\\\\n')}${suffix}`
+      );
+      if (!repaired || repaired === raw) throw error;
+      parsed = JSON.parse(repaired);
+    }
     if (!parsed || typeof parsed !== 'object' || typeof parsed.private_key !== 'string') {
       throw new Error('service account is missing a private key');
     }
