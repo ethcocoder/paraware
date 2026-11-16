@@ -15,9 +15,7 @@ const TABLES = {
 };
 
 const primaryKeys = Object.fromEntries(Object.keys(TABLES).map((table) => [table, 'id']));
-const firestoreEnabled = Boolean(
-  process.env.FIREBASE_SERVICE_ACCOUNT_JSON || process.env.FIREBASE_SERVICE_ACCOUNT_B64
-);
+const firestoreEnabled = Boolean(process.env.FIREBASE_SERVICE_ACCOUNT_B64);
 const memory = new Map();
 let firestore = null;
 let persistQueue = Promise.resolve();
@@ -63,10 +61,7 @@ function escapeRawJsonStringControls(value) {
 
 function serviceAccount() {
   try {
-    const source = process.env.FIREBASE_SERVICE_ACCOUNT_B64 ? 'base64' : 'json';
-    const raw = source === 'base64'
-      ? Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_B64, 'base64').toString('utf8')
-      : process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+    const raw = Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_B64, 'base64').toString('utf8');
     let parsed;
     try {
       parsed = JSON.parse(raw);
@@ -80,7 +75,7 @@ function serviceAccount() {
     }
     return { ...parsed, private_key: parsed.private_key.replace(/\\n/g, '\n') };
   } catch (error) {
-    throw new Error(`Firebase service account is invalid (${process.env.FIREBASE_SERVICE_ACCOUNT_B64 ? 'base64' : 'json'}): ${error.message}`);
+    throw new Error(`Firebase service account is invalid: ${error.message}`);
   }
 }
 
