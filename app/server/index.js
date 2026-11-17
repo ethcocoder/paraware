@@ -41,6 +41,18 @@ try {
 if (!hasSeedData()) {
   seedDatabase();
   console.log('Seeded the Paraware pilot database.');
+} else if (!get('SELECT id FROM users WHERE phone = ?', '0973634455')) {
+  // Add the pilot admin to databases that were seeded before this account existed.
+  run(
+    `INSERT INTO users (id, name, phone, email, password_hash, role, department_id, language, created_at)
+     VALUES (?, ?, ?, ?, ?, 'admin', NULL, 'en', ?)`,
+    crypto.randomUUID(),
+    'Woreda 04 Administrator',
+    '0973634455',
+    'admin@paraware.et',
+    hashPassword('12345678@'),
+    new Date().toISOString()
+  );
 }
 
 app.disable('x-powered-by');
@@ -111,7 +123,12 @@ function safeUser(row, prefix = '') {
 }
 
 function normalizePhone(value) {
-  return String(value || '').replace(/[^\d+]/g, '');
+  let digits = String(value || '').replace(/\D/g, '');
+  // Accept both 0973634455 and +251973634455 as the same account.
+  if (digits.length === 12 && digits.startsWith('251')) {
+    digits = `0${digits.slice(3)}`;
+  }
+  return digits;
 }
 
 function deriveTitle(description) {
@@ -125,15 +142,14 @@ function saveDataUrl(dataUrl) {
   if (!dataUrl || typeof dataUrl !== 'string') return null;
   const match = dataUrl.match(/^data:(image\/(?:jpeg|jpg|png|webp));base64,([A-Za-z0-9+/=\s]+)$/);
   if (!match) throw httpError(400, 'Please attach a JPEG, PNG or WebP photograph.');
-  const mime = match[1] === 'image/jpg' ? 'image/jpeg' : match[1];
-  const buffer = Buffer.from(match[2].replace(/\s/g, ''), 'base64');
-  if (buffer.length > 10 * 1024 * 1024) {
-    throw httpError(413, 'The photograph is too large. Please use one under 10 MB.');
+  const bytes = Buffer.byteLength(match[2].replace(/\s/g, ''), 'base64');
+  if (bytes > 700 * 1024) {
+    throw httpError(413, 'The photograph is too large. Please use a smaller photograph.');
   }
-  const ext = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[mime];
-  const name = `${Date.now()}-${crypto.randomBytes(7).toString('hex')}.${ext}`;
-  fs.writeFileSync(path.join(UPLOAD_DIR, name), buffer);
-  return `/uploads/${name}`;
+  // Keep the picture inline with the report. Writing to /uploads on a
+  // serverless host is unreliable: the SPA rewrite swallows the URL and the
+  // file lives in an isolated /tmp that the next request cannot see.
+  return dataUrl.replace(/\s/g, '');
 }
 
 function reportRow(id) {
@@ -149,7 +165,7 @@ function reportRow(id) {
             (SELECT COUNT(*) FROM messages m WHERE m.report_id = r.id AND m.is_internal = 0) AS message_count,
             (SELECT body FROM messages m WHERE m.report_id = r.id AND m.is_internal = 0 ORDER BY m.created_at DESC LIMIT 1) AS last_message
      FROM reports r
-     JOIN users c ON c.id = r.citizen_id
+     LEFT JOIN users c ON c.id = r.citizen_id
      LEFT JOIN departments d ON d.id = r.department_id
      LEFT JOIN users a ON a.id = r.assigned_to
      WHERE r.id = ?`,
@@ -231,7 +247,7 @@ function serializeReport(row, { detail = false, viewerRole = null } = {}) {
     result.messages = all(
       `SELECT m.id, m.body, m.is_internal, m.created_at, m.author_id,
               u.name AS author_name, u.role AS author_role
-       FROM messages m JOIN users u ON u.id = m.author_id
+       FROM messages m LEFT JOIN users u ON u.id = m.author_id
        WHERE m.report_id = ? ${viewerRole === 'citizen' ? 'AND m.is_internal = 0' : ''}
        ORDER BY m.created_at ASC`,
       row.id
@@ -319,29 +335,9 @@ function canAccessReport(user, report) {
   return false;
 }
 
-const loginAttempts = new Map();
-function loginThrottle(req, _res, next) {
-  const key = req.ip || 'unknown';
-  const entry = loginAttempts.get(key) || { count: 0, reset: Date.now() + 15 * 60 * 1000 };
-  if (Date.now() > entry.reset) {
-    entry.count = 0;
-    entry.reset = Date.now() + 15 * 60 * 1000;
-  }
-  if (entry.count >= 12) {
-    return next(httpError(429, 'Too many sign-in attempts. Please wait 15 minutes.'));
-  }
-  loginAttempts.set(key, entry);
-  req.loginEntry = entry;
-  next();
-}
-
-function recordFailedLogin(req) {
-  if (req.loginEntry) req.loginEntry.count += 1;
-}
-
 // ---------- Auth ----------
 
-app.post('/api/auth/login', loginThrottle, (req, res) => {
+app.post('/api/auth/login', (req, res) => {
   const identifier = String(req.body.identifier || '').trim().toLowerCase();
   const password = String(req.body.password || '');
   if (!identifier || !password) {
@@ -355,7 +351,6 @@ app.post('/api/auth/login', loginThrottle, (req, res) => {
     normalizePhone(identifier)
   );
   if (!user || !verifyPassword(password, user.password_hash)) {
-    recordFailedLogin(req);
     throw httpError(401, 'Those details do not match an account.');
   }
   addAudit(user.id, 'auth.signed_in', 'user', user.id, 'Signed in to Paraware');
@@ -417,13 +412,15 @@ app.patch('/api/me', authenticate, (req, res) => {
     ? req.body.language
     : req.user.language;
   const name = String(req.body.name || req.user.name).trim();
+  if (name.length < 2) throw httpError(400, 'Please enter your full name.');
+  if (name.length > 120) throw httpError(400, 'Please keep your name under 120 characters.');
   run('UPDATE users SET name = ?, language = ? WHERE id = ?', name, language, req.user.id);
   const user = get(
     `SELECT u.*, d.name AS department_name FROM users u
      LEFT JOIN departments d ON d.id = u.department_id WHERE u.id = ?`,
     req.user.id
   );
-  res.json({ user: publicUser(user) });
+  res.json({ user: publicUser(user || { ...req.user, name, language }) });
 });
 
 // ---------- Public ----------
@@ -472,7 +469,7 @@ app.get('/api/citizen/home', authenticate, requireRole('citizen'), (req, res) =>
             d.color AS department_color, c.name AS citizen_name, c.phone AS citizen_phone,
             c.email AS citizen_email,
             (SELECT COUNT(*) FROM messages m WHERE m.report_id = r.id AND m.is_internal = 0) AS message_count
-     FROM reports r JOIN users c ON c.id = r.citizen_id
+     FROM reports r LEFT JOIN users c ON c.id = r.citizen_id
      LEFT JOIN departments d ON d.id = r.department_id
      WHERE r.citizen_id = ? ORDER BY r.created_at DESC`,
     req.user.id
@@ -545,7 +542,7 @@ app.get('/api/reports', authenticate, (req, res) => {
             c.email AS citizen_email, a.name AS assignee_name,
             (SELECT COUNT(*) FROM messages m WHERE m.report_id = r.id AND m.is_internal = 0) AS message_count,
             (SELECT body FROM messages m WHERE m.report_id = r.id AND m.is_internal = 0 ORDER BY m.created_at DESC LIMIT 1) AS last_message
-     FROM reports r JOIN users c ON c.id = r.citizen_id
+     FROM reports r LEFT JOIN users c ON c.id = r.citizen_id
      LEFT JOIN departments d ON d.id = r.department_id
      LEFT JOIN users a ON a.id = r.assigned_to
      ${where}
@@ -701,7 +698,7 @@ app.get('/api/reports/:id', authenticate, (req, res) => {
               d.color AS department_color, c.name AS citizen_name, c.phone AS citizen_phone,
               c.email AS citizen_email, a.name AS assignee_name,
               (SELECT COUNT(*) FROM messages m WHERE m.report_id = r.id AND m.is_internal = 0) AS message_count
-       FROM reports r JOIN users c ON c.id = r.citizen_id
+       FROM reports r LEFT JOIN users c ON c.id = r.citizen_id
        LEFT JOIN departments d ON d.id = r.department_id
        LEFT JOIN users a ON a.id = r.assigned_to
        WHERE r.id != ? AND r.status NOT IN ('closed')
@@ -776,7 +773,7 @@ app.post(
 
     const message = get(
       `SELECT m.*, u.name AS author_name, u.role AS author_role
-       FROM messages m JOIN users u ON u.id = m.author_id WHERE m.id = ?`,
+       FROM messages m LEFT JOIN users u ON u.id = m.author_id WHERE m.id = ?`,
       id
     );
     res.status(201).json({

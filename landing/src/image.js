@@ -1,4 +1,4 @@
-export async function compressImage(file, max = 1400, quality = 0.8) {
+export async function compressImage(file, max = 1200, quality = 0.72) {
   if (!file.type.startsWith('image/')) {
     throw new Error('Please select a photograph.');
   }

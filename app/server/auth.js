@@ -33,10 +33,20 @@ export function verifyPassword(password, stored) {
 
 export function createToken(user) {
   const header = base64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+  // Carry the public profile in the signed token so a session keeps working
+  // even if the request lands on a serverless instance that has not loaded
+  // this account yet.
   const payload = base64url(
     JSON.stringify({
       sub: user.id,
       role: user.role,
+      name: user.name,
+      phone: user.phone || null,
+      email: user.email || null,
+      departmentId: user.department_id || user.departmentId || null,
+      departmentName: user.department_name || user.departmentName || null,
+      language: user.language || 'en',
+      createdAt: user.created_at || user.createdAt || null,
       exp: Date.now() + TOKEN_TTL_MS,
     })
   );
@@ -64,7 +74,21 @@ export function verifyToken(token) {
        WHERE u.id = ?`,
       data.sub
     );
-    return user || null;
+    if (user) return user;
+    if (!data.sub || !data.role) return null;
+    // Fallback for in-memory deployments where this instance has never seen
+    // the account. The signature above proves the details are trustworthy.
+    return {
+      id: data.sub,
+      name: data.name,
+      phone: data.phone || null,
+      email: data.email || null,
+      role: data.role,
+      department_id: data.departmentId || null,
+      department_name: data.departmentName || null,
+      language: data.language || 'en',
+      created_at: data.createdAt || null,
+    };
   } catch {
     return null;
   }
@@ -72,7 +96,8 @@ export function verifyToken(token) {
 
 export function authenticate(req, _res, next) {
   const header = req.headers.authorization || '';
-  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+  const bearer = /^Bearer\s+(.+)$/i.exec(header);
+  const token = bearer ? bearer[1].trim() : null;
   const user = verifyToken(token);
   if (!user) {
     const error = new Error('Please sign in to continue.');

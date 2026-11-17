@@ -74,6 +74,17 @@ const users = [
     language: 'am',
     createdAt: ago(45),
   },
+  {
+    id: 'user-admin-main',
+    name: 'Woreda 04 Administrator',
+    phone: '0973634455',
+    email: 'admin@paraware.et',
+    password: '12345678@',
+    role: 'admin',
+    departmentId: null,
+    language: 'en',
+    createdAt: ago(90),
+  },
 ];
 
 const reports = [

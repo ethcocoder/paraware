@@ -39,7 +39,10 @@ export async function api(path, { method = 'GET', body, signal } = {}) {
   }
 
   if (!response.ok) {
-    if (response.status === 401 && token) {
+    // A bad password on /auth/login is a 401 too — never wipe a valid session
+    // because of it. Only signed-in API calls signal an expired session.
+    const isAuthAttempt = path === '/auth/login' || path === '/auth/register';
+    if (response.status === 401 && token && !isAuthAttempt) {
       setToken(null);
       window.dispatchEvent(new Event('paraware:signed-out'));
     }
@@ -50,8 +53,7 @@ export async function api(path, { method = 'GET', body, signal } = {}) {
   return data;
 }
 
+// Report photos are stored inline as data URLs, so no URL rewriting is needed.
 export function assetUrl(url) {
-  if (!url) return null;
-  if (/^(https?:|data:|blob:)/.test(url)) return url;
-  return url;
+  return url || null;
 }

@@ -196,7 +196,7 @@ export default function AuthorityReport() {
     event.target.value = '';
     if (!file) return;
     try {
-      const dataUrl = await compressImage(file, 1400, 0.8);
+      const dataUrl = await compressImage(file);
       setEvidence(dataUrl);
       setEvidenceName(file.name);
     } catch (err) {

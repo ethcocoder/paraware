@@ -41,7 +41,8 @@ export async function api(path, { method = 'GET', body, signal } = {}) {
   }
 
   if (!response.ok) {
-    if (response.status === 401 && token) {
+    const isAuthAttempt = path === '/auth/login' || path === '/auth/register';
+    if (response.status === 401 && token && !isAuthAttempt) {
       setToken(null);
       window.dispatchEvent(new Event('paraware:signed-out'));
     }
@@ -53,7 +54,5 @@ export async function api(path, { method = 'GET', body, signal } = {}) {
 }
 
 export function assetUrl(url) {
-  if (!url) return null;
-  if (/^(https?:|data:|blob:)/.test(url)) return url;
-  return url;
+  return url || null;
 }

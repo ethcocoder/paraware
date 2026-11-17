@@ -101,9 +101,9 @@ export function Login() {
 
   useEffect(() => {
     if (user) {
-      navigate(user.role === 'citizen' ? '/app' : '/authority', { replace: true });
+      navigate(destination(user), { replace: true });
     }
-  }, [user, navigate]);
+  }, [user, navigate, next]);
 
   function destination(signedInUser) {
     if (signedInUser.role === 'citizen') {
@@ -254,7 +254,7 @@ export function Login() {
 }
 
 export function Register() {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { user, register } = useAuth();
   const navigate = useNavigate();
   const [form, setForm] = useState({
@@ -285,6 +285,7 @@ export function Register() {
       const signedIn = await register({
         ...form,
         email: form.email || undefined,
+        language: lang,
       });
       navigate(signedIn.role === 'citizen' ? '/app' : '/authority', { replace: true });
     } catch (err) {
