@@ -92,7 +92,7 @@ export function CitizenLayout() {
   const newReport = location.pathname.endsWith('/report');
 
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'instant' });
+    window.scrollTo(0, 0);
   }, [location.pathname]);
 
   return (
@@ -181,7 +181,7 @@ export function AuthorityLayout() {
 
   useEffect(() => {
     setMobileOpen(false);
-    window.scrollTo({ top: 0, behavior: 'instant' });
+    window.scrollTo(0, 0);
   }, [location.pathname]);
 
   return (

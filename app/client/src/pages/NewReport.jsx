@@ -18,6 +18,7 @@ import {
   X,
 } from 'lucide-react';
 import { api } from '../api';
+import { storage } from '../storage';
 import { useAuth } from '../auth';
 import { useLanguage } from '../i18n';
 import { CATEGORIES } from '../constants';
@@ -29,7 +30,7 @@ const DRAFT_KEY = 'paraware.reportDraft';
 
 function loadDraft() {
   try {
-    const raw = localStorage.getItem(DRAFT_KEY);
+    const raw = storage.getItem(DRAFT_KEY);
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
@@ -75,7 +76,7 @@ export default function NewReport() {
     const timer = window.setTimeout(() => {
       if (!photo && !form.description && !form.locationName) return;
       try {
-        localStorage.setItem(
+        storage.setItem(
           DRAFT_KEY,
           JSON.stringify({ photo, photoName, form, savedAt: new Date().toISOString() })
         );
@@ -145,7 +146,7 @@ export default function NewReport() {
   }
 
   function clearDraft() {
-    localStorage.removeItem(DRAFT_KEY);
+    storage.removeItem(DRAFT_KEY);
     setPhoto(null);
     setPhotoName('');
     setForm({ description: '', category: '', locationName: '', latitude: null, longitude: null });
@@ -201,7 +202,7 @@ export default function NewReport() {
           language: lang,
         },
       });
-      localStorage.removeItem(DRAFT_KEY);
+      storage.removeItem(DRAFT_KEY);
       setCreated(result.report);
       push('Your report has been sent to Woreda 04.');
     } catch (err) {
@@ -515,7 +516,7 @@ export default function NewReport() {
                 <div className="review-body">
                   <span className="review-eyebrow">Citizen report</span>
                   <h3>
-                    {form.description.split(/(?<=[.!?])\s/)[0]?.slice(0, 90) ||
+                    {form.description.split(/[.!?]\s/)[0]?.slice(0, 90) ||
                       'Public problem report'}
                   </h3>
                   <p>{form.description}</p>

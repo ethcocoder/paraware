@@ -13,6 +13,7 @@ import {
 import { useAuth } from '../auth';
 import { useLanguage, LANGUAGES } from '../i18n';
 import { api } from '../api';
+import { storage } from '../storage';
 import { formatDate } from '../format';
 import { useDocumentTitle } from '../hooks';
 import { useToast } from '../toast';
@@ -26,7 +27,7 @@ export default function Profile() {
   const [busy, setBusy] = useState(false);
   const [prefs, setPrefs] = useState(() => {
     try {
-      return JSON.parse(localStorage.getItem('paraware.prefs') || '{"push":true,"sms":false}');
+      return JSON.parse(storage.getItem('paraware.prefs') || '{"push":true,"sms":false}');
     } catch {
       return { push: true, sms: false };
     }
@@ -34,7 +35,7 @@ export default function Profile() {
   useDocumentTitle('Profile');
 
   useEffect(() => {
-    localStorage.setItem('paraware.prefs', JSON.stringify(prefs));
+    storage.setItem('paraware.prefs', JSON.stringify(prefs));
   }, [prefs]);
 
   async function changeLanguage(next) {

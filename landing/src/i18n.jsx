@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { storage } from './storage';
 
 export const LANGUAGES = [
   { id: 'en', label: 'English', short: 'EN' },
@@ -974,13 +975,13 @@ const LanguageContext = createContext(null);
 
 export function LanguageProvider({ children }) {
   const [lang, setLangState] = useState(
-    () => localStorage.getItem('paraware.lang') || 'en'
+    () => storage.getItem('paraware.lang') || 'en'
   );
 
   useEffect(() => {
     document.documentElement.lang = lang;
     document.documentElement.dataset.lang = lang;
-    localStorage.setItem('paraware.lang', lang);
+    storage.setItem('paraware.lang', lang);
   }, [lang]);
 
   const value = useMemo(

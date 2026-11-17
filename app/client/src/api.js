@@ -1,12 +1,14 @@
+import { storage } from './storage';
+
 const TOKEN_KEY = 'paraware.token';
 
 export function getToken() {
-  return localStorage.getItem(TOKEN_KEY);
+  return storage.getItem(TOKEN_KEY);
 }
 
 export function setToken(token) {
-  if (token) localStorage.setItem(TOKEN_KEY, token);
-  else localStorage.removeItem(TOKEN_KEY);
+  if (token) storage.setItem(TOKEN_KEY, token);
+  else storage.removeItem(TOKEN_KEY);
 }
 
 export async function api(path, { method = 'GET', body, signal } = {}) {
